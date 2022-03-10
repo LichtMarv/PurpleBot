@@ -1,0 +1,6 @@
+.env
+node_modules/*
+.vscode/*
+*.code-workspace
+package-lock.json
+*.service

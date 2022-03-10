@@ -1,0 +1,28 @@
+{
+  "name": "purplebot",
+  "version": "1.0.0",
+  "description": "a  nice bot",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon index.js"
+  },
+  "author": "LichtMarv#4851",
+  "license": "ISC",
+  "dependencies": {
+    "@discordjs/opus": "^0.5.3",
+    "@discordjs/voice": "^0.6.0",
+    "ascii-table": "0.0.9",
+    "discord.js": "^13.1.0",
+    "dotenv": "^16.0.0",
+    "ffmpeg-static": "^4.4.0",
+    "monk": "^7.3.4",
+    "nodemon": "^2.0.12",
+    "opusscript": "^0.0.8",
+    "play-dl": "^1.8.7",
+    "tweetnacl": "^1.0.3",
+    "wolfram-alpha-api": "https://products.wolframalpha.com/api/libraries/javascript/wolfram-alpha-api-1.0.0-rc.1.tgz",
+    "ytdl-core": "^4.9.1",
+    "ytsr": "^3.5.3"
+  }
+}
