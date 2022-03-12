@@ -15,6 +15,7 @@
     "ascii-table": "0.0.9",
     "discord.js": "^13.1.0",
     "dotenv": "^16.0.0",
+    "express": "^4.17.3",
     "ffmpeg-static": "^4.4.0",
     "monk": "^7.3.4",
     "nodemon": "^2.0.12",
