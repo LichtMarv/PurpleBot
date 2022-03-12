@@ -60,7 +60,7 @@ cmd = [
             }else {
                 let newChannel = await msg.guild.channels.create("🎵┃Purple Music");
                 const embed = await music.createEmbed();
-                await newChannel.send({files:[new Discord.MessageAttachment("banner.png")]});
+                await newChannel.send({files:[new Discord.MessageAttachment("resource/banner.png")]});
                 let mymsg = await newChannel.send({content:"​\n__Queue empty__", embeds: [embed]});
                 let up = await musicdb.get("channel").insert({server: msg.guild.id, channel: newChannel.id, message: mymsg.id});
                 msg.channel.send(`created channel <#${newChannel.id}>`)

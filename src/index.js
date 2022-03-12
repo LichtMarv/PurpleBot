@@ -38,7 +38,7 @@ async function checkDelete() {
 
 common.client.on('ready', async () => {
     console.log(`Logged in as ${common.client.user.tag}!`);
-    fs.readFile( __dirname + '/activity.txt', function (err, data) {
+    fs.readFile( __dirname + '/resource/activity.txt', function (err, data) {
         if (err) {
           throw err; 
         }
