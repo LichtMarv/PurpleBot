@@ -173,7 +173,7 @@ cmd = [
                 .setColor(0xf5cd07)
                 .setDescription("[Link](" + memeMsg.url +")")
                 //.setURL(memeMsg.url)
-            var response = await msg.channel.send(embed);
+            var response = await msg.channel.send({embeds: [embed]});
             await common.DeleteIn(response,60);
             await common.DeleteIn(msg,60);
         }
@@ -196,7 +196,7 @@ cmd = [
                 .setTitle('Here is the link to meme #' + args[0])
                 .setColor(0xf5cd07)
                 .setDescription("[Go to Meme](" + memeMsg.url +")")
-            var response1 = await msg.channel.send(embed);
+            var response1 = await msg.channel.send({embeds:[embed]});
             var response2 = await msg.channel.send(memeMsg.content.split(" ")[1]);
             await common.DeleteIn(response1,60);
             await common.DeleteIn(msg,60);
