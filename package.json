@@ -7,23 +7,23 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/index.js"
   },
-  "author": "LichtMarv#4851",
+  "author": "LichtMarv#8932",
   "license": "GPL",
   "dependencies": {
     "@discordjs/opus": "^0.5.3",
     "@discordjs/voice": "^0.6.0",
     "ascii-table": "0.0.9",
-    "discord.js": "^13.1.0",
-    "dotenv": "^16.0.0",
-    "express": "^4.17.3",
-    "ffmpeg-static": "^4.4.0",
+    "discord.js": "^13.8.0",
+    "dotenv": "^16.0.1",
+    "express": "^4.18.1",
+    "ffmpeg-static": "^4.4.1",
     "monk": "^7.3.4",
-    "nodemon": "^2.0.12",
+    "nodemon": "^2.0.16",
     "opusscript": "^0.0.8",
-    "play-dl": "^1.8.7",
+    "play-dl": "^1.9.5",
     "tweetnacl": "^1.0.3",
     "wolfram-alpha-api": "https://products.wolframalpha.com/api/libraries/javascript/wolfram-alpha-api-1.0.0-rc.1.tgz",
-    "ytdl-core": "^4.9.1",
-    "ytsr": "^3.5.3"
+    "ytdl-core": "^4.11.0",
+    "ytsr": "^3.8.0"
   }
 }
