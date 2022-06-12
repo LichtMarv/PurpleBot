@@ -5,14 +5,16 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/index.js"
+    "start": "npx tsc \n node src_new/js/index.js"
   },
   "author": "LichtMarv#8932",
   "license": "GPL",
   "dependencies": {
     "@discordjs/opus": "^0.5.3",
+    "@discordjs/rest": "^0.5.0",
     "@discordjs/voice": "^0.6.0",
     "ascii-table": "0.0.9",
+    "discord-api-types": "^0.33.5",
     "discord.js": "^13.8.0",
     "dotenv": "^16.0.1",
     "express": "^4.18.1",
@@ -22,8 +24,7 @@
     "opusscript": "^0.0.8",
     "play-dl": "^1.9.5",
     "tweetnacl": "^1.0.3",
-    "wolfram-alpha-api": "https://products.wolframalpha.com/api/libraries/javascript/wolfram-alpha-api-1.0.0-rc.1.tgz",
-    "ytdl-core": "^4.11.0",
-    "ytsr": "^3.8.0"
+    "typescript": "^4.7.3",
+    "wolfram-alpha-api": "https://products.wolframalpha.com/api/libraries/javascript/wolfram-alpha-api-1.0.0-rc.1.tgz"
   }
 }
