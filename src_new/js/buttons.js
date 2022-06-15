@@ -2,19 +2,28 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildRow = exports.rows = exports.btns = void 0;
 const discord_js_1 = require("discord.js");
+const music_1 = require("./music");
 const btns = [
     {
         name: "Pause",
         id: "pause",
-        build: async function () {
+        build: async function (guild) {
+            let p = await (0, music_1.getPause)(guild);
             return new discord_js_1.MessageButton()
-                .setLabel(this.name)
+                .setLabel(p ? "Resume" : "Pause")
                 .setCustomId(this.id)
-                .setEmoji("⏸️")
+                .setEmoji(p ? "▶️" : "⏸️")
                 .setStyle("PRIMARY");
         },
         run: async function (interaction) {
-            return "Pause Song";
+            let suc = await (0, music_1.togglePause)(interaction.guildId, interaction.member?.voice?.channel);
+            let c = await buildRow("musicRow", interaction.guildId);
+            if (!c || !suc)
+                return null;
+            interaction.update({
+                components: [c]
+            });
+            return null;
         }
     },
     {
@@ -28,7 +37,9 @@ const btns = [
                 .setStyle("PRIMARY");
         },
         run: async function (interaction) {
-            return "Skip Song";
+            (0, music_1.shiftQueue)(interaction.guildId);
+            interaction.deferUpdate();
+            return null;
         }
     },
     {
@@ -42,7 +53,9 @@ const btns = [
                 .setStyle("PRIMARY");
         },
         run: async function (interaction) {
-            return "Clear list";
+            (0, music_1.stopMusic)(interaction.guildId);
+            interaction.deferUpdate();
+            return null;
         }
     },
     {
@@ -70,7 +83,9 @@ const btns = [
                 .setStyle("PRIMARY");
         },
         run: async function (interaction) {
-            return "Loop list";
+            await (0, music_1.toggleLoop)(interaction.guildId);
+            interaction.deferUpdate();
+            return null;
         }
     },
 ];
@@ -79,7 +94,7 @@ const rows = {
     musicRow: ["pause", "skip", "clear", "shuffle", "loop"],
 };
 exports.rows = rows;
-async function buildRow(id) {
+async function buildRow(id, guild) {
     const data = new discord_js_1.MessageActionRow();
     const row = rows[id];
     for (let i = 0; i < row.length; i++) {
@@ -87,7 +102,7 @@ async function buildRow(id) {
         for (let j = 0; j < btns.length; j++) {
             const btn = btns[j];
             if (btn.id == comp) {
-                data.addComponents(await btn.build());
+                data.addComponents(await btn.build(guild));
                 break;
             }
         }

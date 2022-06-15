@@ -1,9 +1,10 @@
-import { ButtonInteraction, InteractionReplyOptions, MessageActionRow, MessageButton, MessagePayload } from "discord.js"
+import { ButtonInteraction, GuildMember, InteractionReplyOptions, MessageActionRow, MessageButton, MessagePayload, VoiceChannel } from "discord.js"
+import { getPause, shiftQueue, stopMusic, toggleLoop, togglePause } from "./music";
 
 type button = {
     name: string,
     id: string,
-    build: () => Promise<MessageButton>,
+    build: (guild: string | undefined) => Promise<MessageButton>,
     run: (interaction: ButtonInteraction) => Promise<string | MessagePayload | InteractionReplyOptions | null>,
 }
 
@@ -11,15 +12,23 @@ const btns: button[] = [
     {
         name: "Pause",
         id: "pause",
-        build: async function () {
+        build: async function (guild) {
+            let p = await getPause(guild as string);
             return new MessageButton()
-                .setLabel(this.name)
+                .setLabel(p ? "Resume" : "Pause")
                 .setCustomId(this.id)
-                .setEmoji("⏸️")
+                .setEmoji(p ? "▶️" : "⏸️")
                 .setStyle("PRIMARY");
         },
         run: async function (interaction) {
-            return "Pause Song";
+            let suc = await togglePause(interaction.guildId as string, (interaction.member as GuildMember)?.voice?.channel as VoiceChannel);
+            let c = await buildRow("musicRow", interaction.guildId as string);
+            if (!c || !suc)
+                return null;
+            interaction.update({
+                components: [c]
+            });
+            return null;
         }
     },
     {
@@ -33,7 +42,9 @@ const btns: button[] = [
                 .setStyle("PRIMARY");
         },
         run: async function (interaction) {
-            return "Skip Song";
+            shiftQueue(interaction.guildId as string);
+            interaction.deferUpdate();
+            return null;
         }
     },
     {
@@ -47,7 +58,9 @@ const btns: button[] = [
                 .setStyle("PRIMARY");
         },
         run: async function (interaction) {
-            return "Clear list";
+            stopMusic(interaction.guildId as string);
+            interaction.deferUpdate();
+            return null;
         }
     },
     {
@@ -75,7 +88,9 @@ const btns: button[] = [
                 .setStyle("PRIMARY");
         },
         run: async function (interaction) {
-            return "Loop list";
+            await toggleLoop(interaction.guildId as string);
+            interaction.deferUpdate();
+            return null;
         }
     },
 ];
@@ -84,7 +99,7 @@ const rows: { [id: string]: string[] } = {
     musicRow: ["pause", "skip", "clear", "shuffle", "loop"],
 }
 
-async function buildRow(id: string) {
+async function buildRow(id: string, guild: string) {
     const data = new MessageActionRow();
     const row = rows[id];
     for (let i = 0; i < row.length; i++) {
@@ -92,7 +107,7 @@ async function buildRow(id: string) {
         for (let j = 0; j < btns.length; j++) {
             const btn = btns[j];
             if (btn.id == comp) {
-                data.addComponents(await btn.build());
+                data.addComponents(await btn.build(guild));
                 break;
             }
         }
