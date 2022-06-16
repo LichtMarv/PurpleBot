@@ -69,22 +69,30 @@ const btns = [
                 .setStyle("PRIMARY");
         },
         run: async function (interaction) {
-            return "Shuffle list";
+            (0, music_1.shuffleQueue)(interaction.guildId);
+            interaction.deferUpdate();
+            return null;
         }
     },
     {
         name: "Loop",
         id: "loop",
-        build: async function () {
+        build: async function (guild) {
+            let l = await (0, music_1.getLoop)(guild);
             return new discord_js_1.MessageButton()
                 .setLabel(this.name)
                 .setCustomId(this.id)
                 .setEmoji("🔁")
-                .setStyle("PRIMARY");
+                .setStyle(l ? "SUCCESS" : "DANGER");
         },
         run: async function (interaction) {
             await (0, music_1.toggleLoop)(interaction.guildId);
-            interaction.deferUpdate();
+            let c = await buildRow("musicRow", interaction.guildId);
+            if (!c)
+                return null;
+            interaction.update({
+                components: [c]
+            });
             return null;
         }
     },

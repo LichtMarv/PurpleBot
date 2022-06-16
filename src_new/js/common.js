@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getServerInfo = exports.setServerInfo = exports.DeleteIn = exports.getCollection = exports.client = exports.deletedb = exports.userdb = exports.memesdb = exports.serverInfo = void 0;
+exports.shuffle = exports.getServerInfo = exports.setServerInfo = exports.DeleteIn = exports.getCollection = exports.client = exports.deletedb = exports.userdb = exports.memesdb = exports.serverInfo = void 0;
 const discord_js_1 = require("discord.js");
 const monk_1 = __importDefault(require("monk"));
 const db = (0, monk_1.default)("purplebot:purplebot@server:8550/purplebot", { authSource: "admin" });
@@ -54,3 +54,18 @@ async function getServerInfo(guild) {
     }
 }
 exports.getServerInfo = getServerInfo;
+async function shuffle(array) {
+    let currentIndex = array.length, randomIndex;
+    // While there remain elements to shuffle...
+    while (currentIndex != 0) {
+        // Pick a remaining element...
+        randomIndex = Math.floor(Math.random() * currentIndex);
+        currentIndex--;
+        // And swap it with the current element.
+        [array[currentIndex], array[randomIndex]] = [
+            array[randomIndex], array[currentIndex]
+        ];
+    }
+    return array;
+}
+exports.shuffle = shuffle;

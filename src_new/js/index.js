@@ -25,6 +25,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv = __importStar(require("dotenv"));
 const common = __importStar(require("./common"));
+const fs = __importStar(require("fs"));
 const commands_1 = require("./commands");
 const buttons_1 = require("./buttons");
 const music_1 = require("./music");
@@ -53,6 +54,14 @@ async function checkDelete() {
 }
 common.client.on("ready", async () => {
     console.log(`Logged in as ${common.client.user?.tag}!`);
+    fs.readFile(__dirname + '/../../resource/activity.txt', function (err, data) {
+        if (err) {
+            throw err;
+        }
+        var activities = data.toString().split("\n");
+        var r = Math.floor(Math.random() * activities.length);
+        common.client?.user?.setActivity("with your " + activities[r]);
+    });
     console.log("registering commands ...");
     const guilds = common.client.guilds.cache;
     await (0, commands_1.registerCommands)(guilds);
@@ -125,7 +134,7 @@ common.client.on("messageCreate", async (msg) => {
         channel = await common.client.channels.fetch(server.musicChannel).catch(console.error);
     if (msg.channel == channel) {
         let args = msg.content.split(" ");
-        await (0, music_1.requestSong)(msg.content, msg.member?.voice.channel).catch((e) => { throw e; });
+        await (0, music_1.requestSong)(msg.content, msg.member?.voice.channel, msg.member ? msg.member : msg.author).catch((e) => { throw e; });
         await msg.delete().catch(console.log);
     }
     for (const user of msg.mentions.users) {

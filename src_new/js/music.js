@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPause = exports.togglePause = exports.toggleLoop = exports.shiftQueue = exports.CreateEmbed = exports.showQueue = exports.stopMusic = exports.requestSong = void 0;
+exports.shuffleQueue = exports.getLoop = exports.getPause = exports.togglePause = exports.toggleLoop = exports.shiftQueue = exports.CreateEmbed = exports.showQueue = exports.stopMusic = exports.requestSong = void 0;
 const voice_1 = require("@discordjs/voice");
 const discord_js_1 = require("discord.js");
 const play_dl_1 = __importStar(require("play-dl"));
@@ -70,13 +70,12 @@ async function addToQueue(guild, songs) {
         let cur = songs.shift();
         await common.serverInfo.update({ server: guild }, { $push: { musicQueue: cur } });
         await playSong(guild);
-        common.serverInfo.update({ server: guild }, { $push: { musicQueue: { $each: songs } } });
+        await common.serverInfo.update({ server: guild }, { $push: { musicQueue: { $each: songs } } });
     }
     else {
         await common.serverInfo.update({ server: guild }, { $push: { musicQueue: { $each: songs } } });
-        showQueue(guild);
     }
-    //updateQueue(guild);
+    showQueue(guild);
 }
 async function shiftQueue(guild) {
     let si = await common.getServerInfo(guild);
@@ -89,12 +88,20 @@ async function shiftQueue(guild) {
 }
 exports.shiftQueue = shiftQueue;
 async function playSong(guild) {
+    if ((0, play_dl_1.is_expired)())
+        await (0, play_dl_1.refreshToken)();
+    console.log("play video");
     let queue = (await common.getServerInfo(guild)).musicQueue;
     if (!queue)
         return;
     let song = queue[0];
     if (song == undefined) {
         return;
+    }
+    if (song.from == "spotify") {
+        let spot = await (0, play_dl_1.spotify)(song.url);
+        let uri = await searchVideo(spot.name);
+        song = { url: uri, from: "spotify", by: song.by };
     }
     let ytStream;
     try {
@@ -159,25 +166,39 @@ async function disconnect(guild) {
     showQueue(guild);
 }
 async function getInputType(input) {
-    if (input.startsWith('https') && (0, play_dl_1.yt_validate)(input) === 'video') {
+    let yt = (0, play_dl_1.yt_validate)(input);
+    let sp = (0, play_dl_1.sp_validate)(input);
+    if (input.startsWith('https') && yt === 'video') {
         return "video";
     }
-    else if (input.startsWith('https') && (0, play_dl_1.yt_validate)(input) === 'playlist') {
+    else if (input.startsWith('https') && yt === 'playlist') {
         return "playlist";
+    }
+    else if (input.startsWith('https') && sp) {
+        if (sp == "search")
+            return "name";
+        return "spotify";
     }
     else {
         return "name";
     }
 }
-async function requestSong(input, channel) {
+async function requestSong(input, channel, by) {
+    if ((0, play_dl_1.is_expired)())
+        await (0, play_dl_1.refreshToken)();
     if (!(0, voice_1.getVoiceConnection)(channel.guild.id))
         await connect(channel);
     const t = await getInputType(input);
     let songs = [];
+    let nickname = "";
+    if (by instanceof discord_js_1.GuildMember)
+        nickname = by.nickname ? by.nickname : by.user.username;
+    else
+        nickname = by.username;
     if (t == "name")
-        songs = [{ url: await searchVideo(input), from: "youtube" }];
+        songs = [{ url: await searchVideo(input), from: "youtube", by: nickname }];
     else if (t == "video") {
-        songs = [{ url: input, from: "youtube" }];
+        songs = [{ url: input, from: "youtube", by: nickname }];
     }
     else if (t == "playlist") {
         let pl = await (0, play_dl_1.playlist_info)(input, { incomplete: true });
@@ -185,16 +206,41 @@ async function requestSong(input, channel) {
         let nextSongs = [];
         for (let i = 0; i < nextHundred.length; i++) {
             const ytSong = nextHundred[i];
-            nextSongs.push({ url: ytSong.url, from: "youtube" });
+            nextSongs.push({ url: ytSong.url, from: "youtube", by: nickname });
         }
         await addToQueue(channel.guild.id, nextSongs);
         nextSongs = [];
         let rest = await pl.all_videos();
         for (let i = nextHundred.length; i < rest.length; i++) {
             const ytSong = rest[i];
-            nextSongs.push({ url: ytSong.url, from: "youtube" });
+            nextSongs.push({ url: ytSong.url, from: "youtube", by: nickname });
         }
         songs = nextSongs;
+    }
+    else if (t == "spotify") {
+        let spot = await (0, play_dl_1.spotify)(input);
+        // spot.type === "track" | "playlist" | "album"
+        if (spot.type === "track") {
+            spot = spot;
+            songs = [{ url: spot.url, from: "spotify", by: nickname }];
+        }
+        else if (spot.type === "playlist" || spot.type === "album") {
+            spot = spot;
+            let nextHundred = await spot.page(1);
+            let nextSongs = [];
+            for (let i = 0; i < nextHundred.length; i++) {
+                const spSong = nextHundred[i];
+                nextSongs.push({ url: spSong.url, from: "spotify", by: nickname });
+            }
+            await addToQueue(channel.guild.id, nextSongs);
+            nextSongs = [];
+            let rest = await spot.all_tracks();
+            for (let i = nextHundred.length; i < rest.length; i++) {
+                const spSong = rest[i];
+                nextSongs.push({ url: spSong.url, from: "spotify", by: nickname });
+            }
+            songs = nextSongs;
+        }
     }
     else
         songs = [];
@@ -204,34 +250,42 @@ async function requestSong(input, channel) {
 exports.requestSong = requestSong;
 async function showQueue(guild) {
     console.log("show queue");
+    if ((0, play_dl_1.is_expired)())
+        await (0, play_dl_1.refreshToken)();
     let server = await common.getServerInfo(guild);
     let musicQueue = server.musicQueue;
     let current = musicQueue[0];
-    let urls = [];
     if (current) {
-        for (let i = 0; i < musicQueue.length; i++) {
-            const element = musicQueue[i];
-            urls.push(element.url);
-        }
-        loadSongs(guild, urls, server);
+        loadSongs(guild, musicQueue, server);
     }
     else {
         postQueue(guild, {}, server);
     }
 }
 exports.showQueue = showQueue;
-async function loadSongs(guild, urls, server) {
+async function loadSongs(guild, songs, server) {
     let infos = {};
-    let songCounter = urls.length;
-    for (let i = 0; i < urls.length; i++) {
-        const url = urls[i];
-        (0, play_dl_1.video_basic_info)(url).then((data) => {
-            infos[url] = data;
-            songCounter--;
-            if (songCounter <= 0) {
-                postQueue(guild, infos, server);
-            }
-        });
+    let songCounter = Math.min(songs.length, 11);
+    for (let i = 0; i < Math.min(songs.length, 11); i++) {
+        let song = songs[i];
+        if (song.from == "spotify") {
+            (0, play_dl_1.spotify)(song.url).then((spot) => {
+                spot = spot;
+                infos[song.url] = { title: spot.name, durationInSec: spot.durationInSec };
+                songCounter--;
+                if (songCounter <= 0) {
+                    postQueue(guild, infos, server);
+                }
+            });
+        }
+        else
+            (0, play_dl_1.video_basic_info)(song.url).then((data) => {
+                infos[song.url] = { title: data.video_details.title, durationInSec: data.video_details.durationInSec };
+                songCounter--;
+                if (songCounter <= 0) {
+                    postQueue(guild, infos, server);
+                }
+            });
     }
 }
 async function postQueue(guild, infos, server) {
@@ -255,11 +309,11 @@ async function postQueue(guild, infos, server) {
                 break;
             let info = infos[element.url];
             if (!info)
-                info = await (0, play_dl_1.video_basic_info)(element.url);
-            let title = info.video_details.title;
+                info = { title: "ERROR", durationInSec: 0 };
+            let title = info.title;
             if (title?.length > 40)
                 title = title?.slice(0, 40).concat('...');
-            table.addRow(i, title, toHHMMSS(info.video_details.durationInSec.toString()));
+            table.addRow(i, title, toHHMMSS(info.durationInSec.toString()));
         }
         await m.edit({ content: "​\n```hs\n" + table.toString() + "```", embeds: [embed], components: [row] });
     }
@@ -268,23 +322,28 @@ async function postQueue(guild, infos, server) {
     }
 }
 async function CreateEmbed(guild, server) {
+    console.log("create embed ....");
     let musicQueue = server.musicQueue;
     let current = musicQueue[0];
     let title = undefined;
     let thumbNail = undefined;
     if (current) {
-        let info = await (0, play_dl_1.video_basic_info)(current.url);
-        title = ("[" + toHHMMSS(info.video_details.durationInSec.toString()) + "]") + info.video_details.title;
+        let info = undefined;
+        if (current.from == "spotify")
+            info = (await (0, play_dl_1.search)((await (0, play_dl_1.spotify)(current.url)).name))[0];
+        else
+            info = (await (0, play_dl_1.video_basic_info)(current.url)).video_details;
+        title = ("[" + toHHMMSS(info.durationInSec.toString()) + "]") + info.title;
         if (title.length > 40) {
             title = title.slice(0, 40).concat('...');
         }
-        thumbNail = info.video_details.thumbnails[info.video_details.thumbnails.length - 1];
+        thumbNail = info.thumbnails[info.thumbnails.length - 1];
     }
     let loop = (await common.getServerInfo(guild)).musicLoop;
     let embed = new discord_js_1.MessageEmbed()
         .setTitle(title ? title : "Purple Music")
         .setColor(0x693068)
-        .setDescription("Requested by someone")
+        .setDescription("Requested by " + current.by)
         .setImage(thumbNail ? thumbNail.url : "https://i.imgur.com/aMyAUlp.png")
         .setFooter({ text: (musicQueue ? musicQueue.length : 0) + " songs in queue | " + (loop ? "looping" : "not looping") });
     if (current)
@@ -292,6 +351,18 @@ async function CreateEmbed(guild, server) {
     return embed;
 }
 exports.CreateEmbed = CreateEmbed;
+async function shuffleQueue(guild) {
+    let server = await common.getServerInfo(guild);
+    let queue = server.musicQueue;
+    if (!queue)
+        return;
+    let cur = queue.shift();
+    let shuffled = await common.shuffle(queue);
+    shuffled.unshift(cur);
+    await common.setServerInfo(guild, { musicQueue: shuffled });
+    showQueue(guild);
+}
+exports.shuffleQueue = shuffleQueue;
 async function toggleLoop(guild) {
     let server = await common.getServerInfo(guild);
     let loop = server.musicLoop;
@@ -304,7 +375,11 @@ async function toggleLoop(guild) {
 exports.toggleLoop = toggleLoop;
 async function togglePause(guild, vc, set = undefined) {
     if (players[guild] == undefined) {
-        await connect(vc);
+        if (vc)
+            await connect(vc);
+        else {
+            return true;
+        }
     }
     else if ((0, voice_1.getVoiceConnection)(guild)?.state.status == voice_1.VoiceConnectionStatus.Ready && (await (await common.client.guilds.fetch(guild)).members.fetch(common.client.user?.id)).voice.channel != vc)
         return false;
@@ -328,6 +403,14 @@ async function getPause(guild) {
     return cur;
 }
 exports.getPause = getPause;
+async function getLoop(guild) {
+    let server = await common.getServerInfo(guild);
+    let loop = server.musicLoop;
+    if (loop)
+        return true;
+    return false;
+}
+exports.getLoop = getLoop;
 async function stopMusic(guild) {
     disconnect(guild);
 }

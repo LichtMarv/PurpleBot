@@ -1,5 +1,6 @@
 import * as dotenv from "dotenv";
 import * as common from "./common";
+import * as fs from "fs";
 import { cmds, registerCommands } from "./commands";
 import { btns } from "./buttons";
 import { TextChannel, VoiceChannel } from "discord.js";
@@ -32,6 +33,14 @@ async function checkDelete() {
 
 common.client.on("ready", async () => {
     console.log(`Logged in as ${common.client.user?.tag}!`);
+    fs.readFile(__dirname + '/../../resource/activity.txt', function (err, data) {
+        if (err) {
+            throw err;
+        }
+        var activities = data.toString().split("\n");
+        var r = Math.floor(Math.random() * activities.length);
+        common.client?.user?.setActivity("with your " + activities[r]);
+    });
     console.log("registering commands ...");
     const guilds = common.client.guilds.cache
     await registerCommands(guilds);
@@ -106,7 +115,7 @@ common.client.on("messageCreate", async (msg) => {
         channel = await common.client.channels.fetch(server.musicChannel).catch(console.error);
     if (msg.channel == channel) {
         let args = msg.content.split(" ");
-        await requestSong(msg.content, msg.member?.voice.channel as VoiceChannel).catch((e) => { throw e });
+        await requestSong(msg.content, msg.member?.voice.channel as VoiceChannel, msg.member ? msg.member : msg.author).catch((e) => { throw e });
         await msg.delete().catch(console.log);
     }
 

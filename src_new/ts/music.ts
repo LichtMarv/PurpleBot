@@ -1,6 +1,6 @@
 import { AudioPlayer, AudioPlayerStatus, createAudioPlayer, createAudioResource, DiscordGatewayAdapterCreator, entersState, getVoiceConnection, joinVoiceChannel, VoiceConnectionStatus } from "@discordjs/voice";
-import { Message, MessageEmbed, TextChannel, VoiceChannel } from "discord.js";
-import play, { InfoData, playlist_info, video_basic_info, video_info, yt_validate } from "play-dl";
+import { GuildMember, Message, MessageEmbed, TextChannel, User, VoiceChannel } from "discord.js";
+import play, { InfoData, is_expired, playlist_info, refreshToken, search, spotify, SpotifyAlbum, SpotifyPlaylist, SpotifyTrack, sp_validate, video_basic_info, video_info, YouTubeVideo, yt_validate } from "play-dl";
 import { buildRow } from "./buttons";
 import * as common from "./common"
 const AsciiTable = require("ascii-table");
@@ -8,8 +8,13 @@ const AsciiTable = require("ascii-table");
 type song = {
     from: "youtube" | "spotify" | "playlist",
     url: string,
+    by: string
 }
 
+type SongInfo = {
+    title: string,
+    durationInSec: number,
+}
 
 const toHHMMSS = function (i: string) {
     var sec_num = parseInt(i as string, 10); // don't forget the second param
@@ -51,13 +56,12 @@ async function addToQueue(guild: string, songs: song[]) {
         let cur = songs.shift();
         await common.serverInfo.update({ server: guild }, { $push: { musicQueue: cur } });
         await playSong(guild);
-        common.serverInfo.update({ server: guild }, { $push: { musicQueue: { $each: songs } } });
+        await common.serverInfo.update({ server: guild }, { $push: { musicQueue: { $each: songs } } });
     }
     else {
         await common.serverInfo.update({ server: guild }, { $push: { musicQueue: { $each: songs } } });
-        showQueue(guild);
     }
-    //updateQueue(guild);
+    showQueue(guild);
 }
 
 async function shiftQueue(guild: string) {
@@ -71,12 +75,21 @@ async function shiftQueue(guild: string) {
 }
 
 async function playSong(guild: string) {
+    if (is_expired())
+        await refreshToken();
+    console.log("play video");
     let queue = (await common.getServerInfo(guild)).musicQueue;
     if (!queue)
         return;
-    let song = queue[0];
+    let song: song = queue[0];
     if (song == undefined) {
         return;
+    }
+
+    if (song.from == "spotify") {
+        let spot = await spotify(song.url);
+        let uri = await searchVideo(spot.name);
+        song = { url: uri, from: "spotify", by: song.by };
     }
 
     let ytStream;
@@ -145,26 +158,39 @@ async function disconnect(guild: string) {
 }
 
 async function getInputType(input: string) {
-    if (input.startsWith('https') && yt_validate(input) === 'video') {
+    let yt = yt_validate(input);
+    let sp = sp_validate(input);
+    if (input.startsWith('https') && yt === 'video') {
         return "video";
-    } else if (input.startsWith('https') && yt_validate(input) === 'playlist') {
+    } else if (input.startsWith('https') && yt === 'playlist') {
         return "playlist";
+    } else if (input.startsWith('https') && sp) {
+        if (sp == "search")
+            return "name";
+        return "spotify";
     } else {
         return "name";
     }
 }
 
-async function requestSong(input: string, channel: VoiceChannel) {
+async function requestSong(input: string, channel: VoiceChannel, by: GuildMember | User) {
+    if (is_expired())
+        await refreshToken();
     if (!getVoiceConnection(channel.guild.id))
         await connect(channel);
 
     const t: string = await getInputType(input);
     let songs: song[] = [];
 
+    let nickname: string = "";
+    if (by instanceof GuildMember)
+        nickname = by.nickname ? by.nickname : by.user.username;
+    else
+        nickname = by.username;
     if (t == "name")
-        songs = [{ url: await searchVideo(input), from: "youtube" }];
+        songs = [{ url: await searchVideo(input), from: "youtube", by: nickname }];
     else if (t == "video") {
-        songs = [{ url: input, from: "youtube" }];
+        songs = [{ url: input, from: "youtube", by: nickname }];
     }
     else if (t == "playlist") {
         let pl = await playlist_info(input, { incomplete: true });
@@ -172,16 +198,40 @@ async function requestSong(input: string, channel: VoiceChannel) {
         let nextSongs: song[] = [];
         for (let i = 0; i < nextHundred.length; i++) {
             const ytSong = nextHundred[i];
-            nextSongs.push({ url: ytSong.url, from: "youtube" });
+            nextSongs.push({ url: ytSong.url, from: "youtube", by: nickname });
         }
         await addToQueue(channel.guild.id, nextSongs);
         nextSongs = [];
         let rest = await pl.all_videos();
         for (let i = nextHundred.length; i < rest.length; i++) {
             const ytSong = rest[i];
-            nextSongs.push({ url: ytSong.url, from: "youtube" });
+            nextSongs.push({ url: ytSong.url, from: "youtube", by: nickname });
         }
         songs = nextSongs;
+    }
+    else if (t == "spotify") {
+        let spot = await spotify(input)
+        // spot.type === "track" | "playlist" | "album"
+        if (spot.type === "track") {
+            spot = spot as SpotifyTrack;
+            songs = [{ url: spot.url, from: "spotify", by: nickname }];
+        } else if (spot.type === "playlist" || spot.type === "album") {
+            spot = spot as SpotifyPlaylist | SpotifyAlbum;
+            let nextHundred = await spot.page(1) as SpotifyTrack[];
+            let nextSongs: song[] = [];
+            for (let i = 0; i < nextHundred.length; i++) {
+                const spSong = nextHundred[i];
+                nextSongs.push({ url: spSong.url, from: "spotify", by: nickname });
+            }
+            await addToQueue(channel.guild.id, nextSongs);
+            nextSongs = [];
+            let rest = await spot.all_tracks();
+            for (let i = nextHundred.length; i < rest.length; i++) {
+                const spSong = rest[i];
+                nextSongs.push({ url: spSong.url, from: "spotify", by: nickname });
+            }
+            songs = nextSongs;
+        }
     }
     else
         songs = [];
@@ -192,38 +242,45 @@ async function requestSong(input: string, channel: VoiceChannel) {
 
 async function showQueue(guild: string) {
     console.log("show queue");
+    if (is_expired())
+        await refreshToken();
     let server = await common.getServerInfo(guild);
     let musicQueue = server.musicQueue;
     let current = musicQueue[0];
-    let urls: string[] = [];
     if (current) {
-        for (let i = 0; i < musicQueue.length; i++) {
-            const element = musicQueue[i];
-            urls.push(element.url);
-        }
-        loadSongs(guild, urls, server);
+        loadSongs(guild, musicQueue as song[], server);
     } else {
         postQueue(guild, {}, server);
     }
 }
 
-async function loadSongs(guild: string, urls: string[], server: any) {
-    let infos: { [id: string]: InfoData } = {};
-    let songCounter = urls.length;
-    for (let i = 0; i < urls.length; i++) {
-        const url = urls[i];
-        video_basic_info(url).then((data) => {
-            infos[url] = data;
-            songCounter--;
-            if (songCounter <= 0) {
-                postQueue(guild, infos, server);
-            }
-        });
+async function loadSongs(guild: string, songs: song[], server: any) {
+    let infos: { [id: string]: SongInfo } = {};
+    let songCounter = Math.min(songs.length, 11);
+    for (let i = 0; i < Math.min(songs.length, 11); i++) {
+        let song = songs[i];
+        if (song.from == "spotify") {
+            spotify(song.url).then((spot) => {
+                spot = spot as SpotifyTrack;
+                infos[song.url] = { title: spot.name as string, durationInSec: spot.durationInSec };
+                songCounter--;
+                if (songCounter <= 0) {
+                    postQueue(guild, infos, server);
+                }
+            });
+        } else
+            video_basic_info(song.url).then((data) => {
+                infos[song.url] = { title: data.video_details.title as string, durationInSec: data.video_details.durationInSec };
+                songCounter--;
+                if (songCounter <= 0) {
+                    postQueue(guild, infos, server);
+                }
+            });
     }
 
 }
 
-async function postQueue(guild: string, infos: { [id: string]: InfoData }, server: any) {
+async function postQueue(guild: string, infos: { [id: string]: SongInfo }, server: any) {
     console.log("postQueue ...");
     let musicQueue = server.musicQueue;
     let current = musicQueue[0];
@@ -245,11 +302,11 @@ async function postQueue(guild: string, infos: { [id: string]: InfoData }, serve
                 break;
             let info = infos[element.url];
             if (!info)
-                info = await video_basic_info(element.url);
-            let title = info.video_details.title;
+                info = { title: "ERROR", durationInSec: 0 };
+            let title = info.title;
             if (title?.length as number > 40)
                 title = title?.slice(0, 40).concat('...');
-            table.addRow(i, title, toHHMMSS(info.video_details.durationInSec.toString()));
+            table.addRow(i, title, toHHMMSS(info.durationInSec.toString()));
         }
         await m.edit({ content: "​\n```hs\n" + table.toString() + "```", embeds: [embed], components: [row] });
     } else {
@@ -259,29 +316,46 @@ async function postQueue(guild: string, infos: { [id: string]: InfoData }, serve
 }
 
 async function CreateEmbed(guild: string, server: any) {
+    console.log("create embed ....")
     let musicQueue = server.musicQueue;
     let current = musicQueue[0];
     let title = undefined
     let thumbNail = undefined
     if (current) {
-        let info = await video_basic_info(current.url);
-        title = ("[" + toHHMMSS(info.video_details.durationInSec.toString()) + "]") + info.video_details.title;
+        let info: YouTubeVideo | undefined = undefined;
+        if (current.from == "spotify")
+            info = (await search((await spotify(current.url)).name))[0];
+        else
+            info = (await video_basic_info(current.url)).video_details;
+        title = ("[" + toHHMMSS(info.durationInSec.toString()) + "]") + info.title;
         if (title.length > 40) {
             title = title.slice(0, 40).concat('...');
         }
-        thumbNail = info.video_details.thumbnails[info.video_details.thumbnails.length - 1];
+        thumbNail = info.thumbnails[info.thumbnails.length - 1];
 
     }
     let loop = (await common.getServerInfo(guild)).musicLoop;
     let embed = new MessageEmbed()
         .setTitle(title ? title : "Purple Music")
         .setColor(0x693068)
-        .setDescription("Requested by someone")
+        .setDescription("Requested by " + current.by)
         .setImage(thumbNail ? thumbNail.url : "https://i.imgur.com/aMyAUlp.png")
         .setFooter({ text: (musicQueue ? musicQueue.length : 0) + " songs in queue | " + (loop ? "looping" : "not looping") });
     if (current)
         embed.setURL(current.url);
     return embed
+}
+
+async function shuffleQueue(guild: string) {
+    let server = await common.getServerInfo(guild);
+    let queue: any[] = server.musicQueue;
+    if (!queue)
+        return;
+    let cur = queue.shift();
+    let shuffled = await common.shuffle(queue);
+    shuffled.unshift(cur);
+    await common.setServerInfo(guild, { musicQueue: shuffled });
+    showQueue(guild);
 }
 
 async function toggleLoop(guild: string) {
@@ -296,7 +370,11 @@ async function toggleLoop(guild: string) {
 
 async function togglePause(guild: string, vc: VoiceChannel, set: boolean | undefined = undefined) {
     if (players[guild] == undefined) {
-        await connect(vc);
+        if (vc)
+            await connect(vc);
+        else {
+            return true;
+        }
     } else if (getVoiceConnection(guild)?.state.status == VoiceConnectionStatus.Ready && (await (await common.client.guilds.fetch(guild)).members.fetch(common.client.user?.id as string)).voice.channel as VoiceChannel != vc)
         return false;
     let cur = undefined;
@@ -319,6 +397,14 @@ async function getPause(guild: string) {
     return cur;
 }
 
+async function getLoop(guild: string) {
+    let server = await common.getServerInfo(guild);
+    let loop = server.musicLoop;
+    if (loop)
+        return true;
+    return false;
+}
+
 async function stopMusic(guild: string) {
     disconnect(guild);
 }
@@ -332,4 +418,6 @@ export {
     toggleLoop,
     togglePause,
     getPause,
+    getLoop,
+    shuffleQueue
 }

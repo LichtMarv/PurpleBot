@@ -45,7 +45,7 @@ const cmds: command[] = [
         run: async function (interaction) {
             let arg = interaction.options.getString("var1", true);
             let vc = (interaction.member as GuildMember)?.voice.channel;
-            requestSong(arg, vc as VoiceChannel);
+            requestSong(arg, vc as VoiceChannel, interaction.member as GuildMember);
             return { content: "maybe working", ephemeral: true };
         }
     },
@@ -312,18 +312,13 @@ async function registerCommands(guilds: Collection<string, Guild>) {
                 }
             }).finally(() => {
                 cmdCount--;
-                console.log(cmdCount)
+                if (cmdCount <= 0)
+                    if (failed[guild.id])
+                        console.log("no permission for guild: " + guild);
             });
-            if (failed[guild.id])
-                break;
         }
     }
 
-    for (const guildCol of guilds) {
-        const guild = guildCol[1];
-        if (failed[guild.id])
-            console.log("no permission for guild: " + guild);
-    }
 }
 
 export {

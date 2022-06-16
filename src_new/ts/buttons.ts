@@ -1,5 +1,5 @@
 import { ButtonInteraction, GuildMember, InteractionReplyOptions, MessageActionRow, MessageButton, MessagePayload, VoiceChannel } from "discord.js"
-import { getPause, shiftQueue, stopMusic, toggleLoop, togglePause } from "./music";
+import { getLoop, getPause, shiftQueue, shuffleQueue, stopMusic, toggleLoop, togglePause } from "./music";
 
 type button = {
     name: string,
@@ -74,22 +74,30 @@ const btns: button[] = [
                 .setStyle("PRIMARY");
         },
         run: async function (interaction) {
-            return "Shuffle list";
+            shuffleQueue(interaction.guildId as string);
+            interaction.deferUpdate();
+            return null;
         }
     },
     {
         name: "Loop",
         id: "loop",
-        build: async function () {
+        build: async function (guild) {
+            let l = await getLoop(guild as string);
             return new MessageButton()
                 .setLabel(this.name)
                 .setCustomId(this.id)
                 .setEmoji("🔁")
-                .setStyle("PRIMARY");
+                .setStyle(l ? "SUCCESS" : "DANGER");
         },
         run: async function (interaction) {
             await toggleLoop(interaction.guildId as string);
-            interaction.deferUpdate();
+            let c = await buildRow("musicRow", interaction.guildId as string);
+            if (!c)
+                return null;
+            interaction.update({
+                components: [c]
+            });
             return null;
         }
     },
