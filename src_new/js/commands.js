@@ -55,14 +55,24 @@ const cmds = [
         }
     },
     {
-        name: "test",
-        description: "the command i use for testing stuff",
-        options: [{ name: "var1", type: "string", description: "variable", required: true }],
+        name: "move",
+        description: "move specified song to top",
+        options: [{ name: "song", type: "int", description: "index of song", required: true }],
         run: async function (interaction) {
-            let arg = interaction.options.getString("var1", true);
-            let vc = interaction.member?.voice.channel;
-            (0, music_1.requestSong)(arg, vc, interaction.member);
-            return { content: "maybe working", ephemeral: true };
+            let arg = interaction.options.getInteger("song", true);
+            let server = await common.getServerInfo(interaction.guildId);
+            let queue = server.musicQueue;
+            if (queue && arg > 0 && arg < queue.length - 1) {
+                let cur = queue.shift();
+                if (!cur)
+                    return null;
+                let toMove = queue.splice(arg - 1, 1)[0];
+                queue.unshift(toMove);
+                queue.unshift(cur);
+                await common.setServerInfo(interaction.guildId, { musicQueue: queue });
+                (0, music_1.showQueue)(interaction.guildId);
+            }
+            return { content: "movin song ...", ephemeral: true };
         }
     },
     {

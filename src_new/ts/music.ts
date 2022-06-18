@@ -70,7 +70,9 @@ async function shiftQueue(guild: string) {
         await common.serverInfo.update({ server: guild }, { $push: { musicQueue: si.musicQueue[0] } });
     }
     await common.serverInfo.update({ server: guild }, { $pop: { musicQueue: -1 } });
-    if (si.musicQueue)
+    if (si.musicQueue && si.musicQueue.length <= 1)
+        stopMusic(guild);
+    if (si.musicQueue && si.musicQueue.length >= 2)
         playSong(guild);
 }
 
@@ -318,7 +320,7 @@ async function postQueue(guild: string, infos: { [id: string]: SongInfo }, serve
 async function CreateEmbed(guild: string, server: any) {
     console.log("create embed ....")
     let musicQueue = server.musicQueue;
-    let current = musicQueue[0];
+    let current = musicQueue ? musicQueue[0] : undefined;
     let title = undefined
     let thumbNail = undefined
     if (current) {
@@ -338,7 +340,7 @@ async function CreateEmbed(guild: string, server: any) {
     let embed = new MessageEmbed()
         .setTitle(title ? title : "Purple Music")
         .setColor(0x693068)
-        .setDescription("Requested by " + current.by)
+        .setDescription(current ? ("Requested by " + current.by) : "Put song name or link in here to play")
         .setImage(thumbNail ? thumbNail.url : "https://i.imgur.com/aMyAUlp.png")
         .setFooter({ text: (musicQueue ? musicQueue.length : 0) + " songs in queue | " + (loop ? "looping" : "not looping") });
     if (current)
@@ -349,7 +351,7 @@ async function CreateEmbed(guild: string, server: any) {
 async function shuffleQueue(guild: string) {
     let server = await common.getServerInfo(guild);
     let queue: any[] = server.musicQueue;
-    if (!queue)
+    if (!queue || queue.length <= 0)
         return;
     let cur = queue.shift();
     let shuffled = await common.shuffle(queue);

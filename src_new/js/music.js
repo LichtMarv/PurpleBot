@@ -343,7 +343,7 @@ async function CreateEmbed(guild, server) {
     let embed = new discord_js_1.MessageEmbed()
         .setTitle(title ? title : "Purple Music")
         .setColor(0x693068)
-        .setDescription("Requested by " + current.by)
+        .setDescription(current ? ("Requested by " + current.by) : "Put song name or link in here to play")
         .setImage(thumbNail ? thumbNail.url : "https://i.imgur.com/aMyAUlp.png")
         .setFooter({ text: (musicQueue ? musicQueue.length : 0) + " songs in queue | " + (loop ? "looping" : "not looping") });
     if (current)

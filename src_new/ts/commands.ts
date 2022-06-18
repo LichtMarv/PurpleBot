@@ -39,14 +39,24 @@ const cmds: command[] = [
         }
     },
     {
-        name: "test",
-        description: "the command i use for testing stuff",
-        options: [{ name: "var1", type: "string", description: "variable", required: true }],
+        name: "move",
+        description: "move specified song to top",
+        options: [{ name: "song", type: "int", description: "index of song", required: true }],
         run: async function (interaction) {
-            let arg = interaction.options.getString("var1", true);
-            let vc = (interaction.member as GuildMember)?.voice.channel;
-            requestSong(arg, vc as VoiceChannel, interaction.member as GuildMember);
-            return { content: "maybe working", ephemeral: true };
+            let arg = interaction.options.getInteger("song", true);
+            let server = await common.getServerInfo(interaction.guildId as string);
+            let queue: { url: string, from: string, by: string | undefined }[] = server.musicQueue;
+            if (queue && arg > 0 && arg < queue.length - 1) {
+                let cur = queue.shift();
+                if (!cur)
+                    return null;
+                let toMove = queue.splice(arg - 1, 1)[0];
+                queue.unshift(toMove);
+                queue.unshift(cur);
+                await common.setServerInfo(interaction.guildId as string, { musicQueue: queue });
+                showQueue(interaction.guildId as string);
+            }
+            return { content: "movin song ...", ephemeral: true };
         }
     },
     {
@@ -72,10 +82,10 @@ const cmds: command[] = [
                 if (newChannel == undefined)
                     return "ERROR";
                 let queue = (await common.getServerInfo(interaction.guildId as string)).musicQueue;
-                const embed = await CreateEmbed(queue, interaction.guildId as string);
                 await newChannel.send({ files: [new MessageAttachment("resource/banner.png")] });
-                let mymsg = await newChannel.send({ content: "​\n__Queue empty__", embeds: [embed] });
+                let mymsg = await newChannel.send({ content: "​\n__Queue empty__" });
                 await common.setServerInfo(interaction.guild?.id as string, { musicChannel: newChannel.id, musicMessage: mymsg.id });
+                showQueue(interaction.guildId as string);
                 return `created channel <#${newChannel.id}>`
             }
         }
@@ -220,12 +230,12 @@ const cmds: command[] = [
         run: async function (interaction) {
             await interaction.deferReply({ ephemeral: true });
             var days = interaction.options.getInteger("days", false);
+            var index = interaction.options.getInteger("position", true) - 1;
             let guild = interaction.guild;
             if (days == null)
                 var memes = await common.memesdb.find({ server: guild?.id }, { limit: 10, sort: { score: -1, time: 1 } });
             else
-                var memes = await common.memesdb.find({ server: guild?.id, time: { $gte: Date.now() - 86400000 * days } }, { limit: 10, sort: { score: -1, time: 1 } });
-            var index = interaction.options.getInteger("position", true) - 1;
+                var memes = await common.memesdb.find({ server: guild?.id, time: { $gte: Date.now() - 86400000 * days } }, { limit: index + 1, sort: { score: -1, time: 1 } });
             var channel = (await common.client.channels.fetch(memes[index].channel)) as TextChannel;
             var memeMsg = await channel?.messages.fetch(memes[index].msg);
             //console.log("get command used! " + memeMsg.content.split(" ")[1] + " | " + memeMsg.url);
