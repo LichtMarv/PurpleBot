@@ -233,7 +233,7 @@ const cmds: command[] = [
             var index = interaction.options.getInteger("position", true) - 1;
             let guild = interaction.guild;
             if (days == null)
-                var memes = await common.memesdb.find({ server: guild?.id }, { limit: 10, sort: { score: -1, time: 1 } });
+                var memes = await common.memesdb.find({ server: guild?.id }, { limit: index + 1, sort: { score: -1, time: 1 } });
             else
                 var memes = await common.memesdb.find({ server: guild?.id, time: { $gte: Date.now() - 86400000 * days } }, { limit: index + 1, sort: { score: -1, time: 1 } });
             var channel = (await common.client.channels.fetch(memes[index].channel)) as TextChannel;
