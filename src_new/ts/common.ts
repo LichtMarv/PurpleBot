@@ -1,4 +1,4 @@
-import { Client, Intents, Message } from "discord.js";
+import { Client, IntentsBitField, Message, Partials } from "discord.js";
 import monk from "monk";
 const db = monk("purplebot:purplebot@server:8550/purplebot", { authSource: "admin" });
 const serverInfo = db.get("serverInfo");
@@ -6,13 +6,48 @@ const memesdb = db.get("memes");
 const userdb = db.get("memeUsers");
 const deletedb = db.get("deletemsg");
 
-const client = new Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'], intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGE_REACTIONS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES] });
+enum LogDataType {
+    MSG,
+    ERR,
+}
+
+const client = new Client({ partials: [Partials.Message, Partials.Channel, Partials.Reaction], intents: [IntentsBitField.Flags.Guilds, IntentsBitField.Flags.GuildMessageReactions, IntentsBitField.Flags.GuildMessages, IntentsBitField.Flags.MessageContent, IntentsBitField.Flags.GuildVoiceStates] });
 
 
 function getCollection(collection: string) {
     if (db._state != "open")
         throw Error("Monk not ready yet!");
     return db.get(collection);
+}
+
+function dateFormat(date: Date, fstr: string) {
+    return fstr.replace(/%[YymdHMS]/g, function (m) {
+        switch (m) {
+            case '%Y': return date.getFullYear().toString(); // no leading zeros required
+            case '%y': return date.getFullYear().toString().slice(-2);
+            case '%m': m = (1 + date.getMonth()).toString(); break;
+            case '%d': m = date.getDate().toString(); break;
+            case '%H': m = date.getHours().toString(); break;
+            case '%M': m = date.getMinutes().toString(); break;
+            case '%S': m = date.getSeconds().toString(); break;
+            default: return m.slice(1); // unknown code, remove %
+        }
+        // add leading zero if required
+        return ('0' + m).slice(-2);
+    });
+}
+
+async function Log(guildId: string, type: LogDataType, msg: string) {
+    let serverInfo = await getServerInfo(guildId);
+    let log: [{ type: LogDataType, msg: string, time: number }] = serverInfo.log
+    if (log) {
+        let len = log.push({ type: type, msg: msg, time: Date.now() });
+        if (len > 1000) log.shift();
+    } else {
+        log = [{ type: type, msg: msg, time: Date.now() }]
+    }
+
+    await setServerInfo(guildId, { "log": log })
 }
 
 async function DeleteIn(msg: Message, timeout: number) {
@@ -73,4 +108,7 @@ export {
     setServerInfo,
     getServerInfo,
     shuffle,
+    Log,
+    dateFormat,
+    LogDataType
 }

@@ -1,5 +1,5 @@
 import { AudioPlayer, AudioPlayerStatus, createAudioPlayer, createAudioResource, DiscordGatewayAdapterCreator, entersState, getVoiceConnection, joinVoiceChannel, VoiceConnectionStatus } from "@discordjs/voice";
-import { GuildMember, Message, MessageEmbed, TextChannel, User, VoiceChannel } from "discord.js";
+import { GuildMember, Message, EmbedBuilder, TextChannel, User, VoiceChannel } from "discord.js";
 import play, { InfoData, is_expired, playlist_info, refreshToken, search, spotify, SpotifyAlbum, SpotifyPlaylist, SpotifyTrack, sp_validate, video_basic_info, video_info, YouTubeVideo, yt_validate } from "play-dl";
 import { buildRow } from "./buttons";
 import * as common from "./common"
@@ -141,6 +141,10 @@ async function connect(channel: VoiceChannel) {
         }
     });
 
+    connection.on(VoiceConnectionStatus.Signalling, async (oldState, newState) => {
+        console.log("SIGNALLING")
+    });
+
     players[guild] = createAudioPlayer();
     players[guild].on(AudioPlayerStatus.Idle, () => {
         shiftQueue(guild);
@@ -178,6 +182,8 @@ async function getInputType(input: string) {
 async function requestSong(input: string, channel: VoiceChannel, by: GuildMember | User) {
     if (is_expired())
         await refreshToken();
+    if (!channel)
+        return;
     if (!getVoiceConnection(channel.guild.id))
         await connect(channel);
 
@@ -248,6 +254,11 @@ async function showQueue(guild: string) {
         await refreshToken();
     let server = await common.getServerInfo(guild);
     let musicQueue = server.musicQueue;
+    if (musicQueue == undefined) {
+        postQueue(guild, {}, server);
+        common.setServerInfo(guild, { musicQueue: [] })
+        return;
+    }
     let current = musicQueue[0];
     if (current) {
         loadSongs(guild, musicQueue as song[], server);
@@ -285,7 +296,11 @@ async function loadSongs(guild: string, songs: song[], server: any) {
 async function postQueue(guild: string, infos: { [id: string]: SongInfo }, server: any) {
     console.log("postQueue ...");
     let musicQueue = server.musicQueue;
-    let current = musicQueue[0];
+    let current
+    if (musicQueue)
+        current = musicQueue[0];
+    else
+        current = undefined
     let row = await buildRow("musicRow", guild);
     let embed = await CreateEmbed(guild, server);
     let c: TextChannel = await common.client.channels.fetch(server.musicChannel).catch(console.log) as TextChannel;
@@ -321,8 +336,8 @@ async function CreateEmbed(guild: string, server: any) {
     console.log("create embed ....")
     let musicQueue = server.musicQueue;
     let current = musicQueue ? musicQueue[0] : undefined;
-    let title = undefined
-    let thumbNail = undefined
+    let title = ""
+    let thumbNail
     if (current) {
         let info: YouTubeVideo | undefined = undefined;
         if (current.from == "spotify")
@@ -337,8 +352,8 @@ async function CreateEmbed(guild: string, server: any) {
 
     }
     let loop = (await common.getServerInfo(guild)).musicLoop;
-    let embed = new MessageEmbed()
-        .setTitle(title ? title : "Purple Music")
+    let embed = new EmbedBuilder()
+        .setTitle(title ? title : "Brave New Music")
         .setColor(0x693068)
         .setDescription(current ? ("Requested by " + current.by) : "Put song name or link in here to play")
         .setImage(thumbNail ? thumbNail.url : "https://i.imgur.com/aMyAUlp.png")
@@ -379,7 +394,7 @@ async function togglePause(guild: string, vc: VoiceChannel, set: boolean | undef
         }
     } else if (getVoiceConnection(guild)?.state.status == VoiceConnectionStatus.Ready && (await (await common.client.guilds.fetch(guild)).members.fetch(common.client.user?.id as string)).voice.channel as VoiceChannel != vc)
         return false;
-    let cur = undefined;
+    let cur = false;
     if (set)
         cur = !set;
     else

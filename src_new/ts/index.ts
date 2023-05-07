@@ -3,7 +3,7 @@ import * as common from "./common";
 import * as fs from "fs";
 import { cmds, registerCommands } from "./commands";
 import { btns } from "./buttons";
-import { TextChannel, VoiceChannel } from "discord.js";
+import { TextChannel, VoiceChannel, Channel } from "discord.js";
 import { requestSong, stopMusic } from "./music";
 dotenv.config()
 
@@ -33,6 +33,7 @@ async function checkDelete() {
 
 common.client.on("ready", async () => {
     console.log(`Logged in as ${common.client.user?.tag}!`);
+    //google.test()
     fs.readFile(__dirname + '/../../resource/activity.txt', function (err, data) {
         if (err) {
             throw err;
@@ -110,9 +111,9 @@ common.client.on("messageCreate", async (msg) => {
         return;
 
     let server = await common.getServerInfo(msg.guildId as string);
-    let channel = null;
+    let channel: Channel | null = null;
     if (server && server.musicChannel)
-        channel = await common.client.channels.fetch(server.musicChannel).catch(console.error);
+        channel = await common.client.channels.fetch(server.musicChannel).catch(console.error) as Channel;
     if (msg.channel == channel) {
         let args = msg.content.split(" ");
         await requestSong(msg.content, msg.member?.voice.channel as VoiceChannel, msg.member ? msg.member : msg.author).catch((e) => { throw e });
@@ -121,18 +122,21 @@ common.client.on("messageCreate", async (msg) => {
 
     for (const user of msg.mentions.users) {
         if (user[1].id == common.client.user?.id) {
-            msg.reply("all bot commands use the / system, so use that. \n you may need to authorize it again: https://discord.com/api/oauth2/authorize?client_id=833423629504348160&permissions=8&scope=bot%20applications.commands")
+            msg.reply("all bot commands use the / system, so use that")
         }
     }
 });
 
 common.client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isCommand()) return;
+    if (!interaction.isChatInputCommand() || interaction.guildId == null) return;
 
     for (let i = 0; i < cmds.length; i++) {
         const command = cmds[i];
 
         if (interaction.commandName === command.name) {
+            if (command.log != false) {
+                common.Log(interaction.guildId, common.LogDataType.MSG, interaction.member?.user.username + " used command '" + command.name + "'")
+            }
             const res = await command.run(interaction);
             if (res) {
                 if (interaction.deferred)
@@ -147,11 +151,12 @@ common.client.on("interactionCreate", async (interaction) => {
 });
 
 common.client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isButton()) return;
+    if (!interaction.isButton() || interaction.guildId == null) return;
 
     for (let i = 0; i < btns.length; i++) {
         const btn = btns[i];
         if (btn.id == interaction.customId) {
+            common.Log(interaction.guildId, common.LogDataType.MSG, interaction.member?.user.username + " used the Button '" + btn.name + "'")
             const res = await btn.run(interaction);
             if (res)
                 if (interaction.deferred)

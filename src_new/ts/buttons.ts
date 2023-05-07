@@ -1,10 +1,10 @@
-import { ButtonInteraction, GuildMember, InteractionReplyOptions, MessageActionRow, MessageButton, MessagePayload, VoiceChannel } from "discord.js"
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, GuildMember, InteractionReplyOptions, MessagePayload, VoiceChannel } from "discord.js"
 import { getLoop, getPause, shiftQueue, shuffleQueue, stopMusic, toggleLoop, togglePause } from "./music";
 
 type button = {
     name: string,
     id: string,
-    build: (guild: string | undefined) => Promise<MessageButton>,
+    build: (guild: string | undefined) => Promise<ButtonBuilder>,
     run: (interaction: ButtonInteraction) => Promise<string | MessagePayload | InteractionReplyOptions | null>,
 }
 
@@ -14,11 +14,11 @@ const btns: button[] = [
         id: "pause",
         build: async function (guild) {
             let p = await getPause(guild as string);
-            return new MessageButton()
+            return new ButtonBuilder()
                 .setLabel(p ? "Resume" : "Pause")
                 .setCustomId(this.id)
                 .setEmoji(p ? "▶️" : "⏸️")
-                .setStyle("PRIMARY");
+                .setStyle(ButtonStyle.Primary);
         },
         run: async function (interaction) {
             let suc = await togglePause(interaction.guildId as string, (interaction.member as GuildMember)?.voice?.channel as VoiceChannel);
@@ -35,11 +35,11 @@ const btns: button[] = [
         name: "Skip",
         id: "skip",
         build: async function () {
-            return new MessageButton()
+            return new ButtonBuilder()
                 .setLabel(this.name)
                 .setCustomId(this.id)
                 .setEmoji("⏭️")
-                .setStyle("PRIMARY");
+                .setStyle(ButtonStyle.Primary);
         },
         run: async function (interaction) {
             shiftQueue(interaction.guildId as string);
@@ -51,11 +51,11 @@ const btns: button[] = [
         name: "Clear",
         id: "clear",
         build: async function () {
-            return new MessageButton()
+            return new ButtonBuilder()
                 .setLabel(this.name)
                 .setCustomId(this.id)
                 .setEmoji("⏹")
-                .setStyle("PRIMARY");
+                .setStyle(ButtonStyle.Primary);
         },
         run: async function (interaction) {
             stopMusic(interaction.guildId as string);
@@ -67,11 +67,11 @@ const btns: button[] = [
         name: "Shuffle",
         id: "shuffle",
         build: async function () {
-            return new MessageButton()
+            return new ButtonBuilder()
                 .setLabel(this.name)
                 .setCustomId(this.id)
                 .setEmoji("🔀")
-                .setStyle("PRIMARY");
+                .setStyle(ButtonStyle.Primary);
         },
         run: async function (interaction) {
             shuffleQueue(interaction.guildId as string);
@@ -84,11 +84,11 @@ const btns: button[] = [
         id: "loop",
         build: async function (guild) {
             let l = await getLoop(guild as string);
-            return new MessageButton()
+            return new ButtonBuilder()
                 .setLabel(this.name)
                 .setCustomId(this.id)
                 .setEmoji("🔁")
-                .setStyle(l ? "SUCCESS" : "DANGER");
+                .setStyle(l ? ButtonStyle.Success : ButtonStyle.Danger);
         },
         run: async function (interaction) {
             await toggleLoop(interaction.guildId as string);
@@ -108,7 +108,7 @@ const rows: { [id: string]: string[] } = {
 }
 
 async function buildRow(id: string, guild: string) {
-    const data = new MessageActionRow();
+    const data = new ActionRowBuilder<ButtonBuilder>();
     const row = rows[id];
     for (let i = 0; i < row.length; i++) {
         const comp = row[i];

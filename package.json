@@ -1,30 +1,25 @@
 {
-  "name": "purplebot",
+  "name": "bravenewbot",
   "version": "1.0.0",
-  "description": "a  nice bot",
+  "description": "",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "npx tsc \n node src_new/js/index.js"
   },
   "author": "LichtMarv#8932",
-  "license": "GPL",
+  "license": "ISC",
   "dependencies": {
-    "@discordjs/opus": "^0.5.3",
-    "@discordjs/rest": "^0.5.0",
-    "@discordjs/voice": "^0.6.0",
-    "ascii-table": "0.0.9",
-    "discord-api-types": "^0.33.5",
-    "discord.js": "^13.8.0",
-    "dotenv": "^16.0.1",
-    "express": "^4.18.1",
-    "ffmpeg-static": "^4.4.1",
+    "@discordjs/voice": "^0.15.0",
+    "@google-cloud/local-auth": "^2.1.0",
+    "ascii-table": "^0.0.9",
+    "discord-api-types": "^0.37.23",
+    "discord.js": "^14.7.1",
+    "dotenv": "^16.0.3",
+    "googleapis": "^105.0.0",
     "monk": "^7.3.4",
-    "nodemon": "^2.0.16",
-    "opusscript": "^0.0.8",
-    "play-dl": "^1.9.5",
+    "play-dl": "^1.9.6",
     "tweetnacl": "^1.0.3",
-    "typescript": "^4.7.3",
-    "wolfram-alpha-api": "https://products.wolframalpha.com/api/libraries/javascript/wolfram-alpha-api-1.0.0-rc.1.tgz"
+    "typescript": "^4.9.4"
   }
 }

@@ -34,14 +34,15 @@ const cmds = [
         name: "help",
         description: "lists the commands i guess",
         run: async function (interaction) {
+            await interaction.deferReply({ ephemeral: true });
             var table = new AsciiTable("Command Help");
             //table.setHeading('Name', 'Aliases', 'Description');
-            const embed = new discord_js_1.MessageEmbed()
+            const embed = new discord_js_1.EmbedBuilder()
                 .setTitle("HELP")
                 .setColor(0xf5cd07);
             for (let i = 0; i < cmds.length; i++) {
                 var c = cmds[i];
-                embed.addField(c.name, c.description);
+                embed.addFields([{ name: c.name, value: c.description }]);
             }
             embed.setFooter({ text: "have fun xD" });
             return { embeds: [embed] };
@@ -55,6 +56,53 @@ const cmds = [
         }
     },
     {
+        name: "log",
+        description: "shows you the custom bot log",
+        log: false,
+        options: [{ name: "page", type: "string", description: "page of the log", required: false }],
+        run: async function (interaction) {
+            await interaction.deferReply({ ephemeral: true });
+            let user = interaction.member;
+            let pageString = interaction.options.getString("page", false);
+            const elemPerPage = 10;
+            let page;
+            if (pageString == null)
+                page = 0;
+            else
+                page = Number.parseInt(pageString);
+            if (interaction.guildId == null) {
+                return "I HATE THIS STUPID FUCKING BOT (log command in  commands.ts)";
+            }
+            if ((user?.permissions).has(discord_js_1.PermissionsBitField.Flags.ViewAuditLog)) {
+                let serverInfo = await common.getServerInfo(interaction.guildId);
+                let log = serverInfo.log;
+                if (log) {
+                    let table = new AsciiTable("Log #" + page.toString() + " (new to old)");
+                    table.setHeading("Type", "Time", "Message");
+                    let show = false;
+                    for (let i = 1 + page * elemPerPage; i <= 10 && i <= log.length; i++) {
+                        const element = log[log.length - i];
+                        let time = new Date(element.time);
+                        // 20/12/22, 23:56:17
+                        let timeStr = common.dateFormat(time, "%d/%m/%y, %H:%M:%S");
+                        table.addRow(element.type, timeStr, element.msg);
+                        show = true;
+                    }
+                    if (show)
+                        return { content: "```hs\n" + table.toString() + "```" };
+                    else
+                        return "we are out of pages, please turn back";
+                }
+                else {
+                    return "No log files found :(";
+                }
+            }
+            else {
+                return "you do not have the needed permissions to view the log :(";
+            }
+        }
+    },
+    {
         name: "move",
         description: "move specified song to top",
         options: [{ name: "song", type: "int", description: "index of song", required: true }],
@@ -62,7 +110,7 @@ const cmds = [
             let arg = interaction.options.getInteger("song", true);
             let server = await common.getServerInfo(interaction.guildId);
             let queue = server.musicQueue;
-            if (queue && arg > 0 && arg < queue.length - 1) {
+            if (queue && arg > 0 && arg < queue.length) {
                 let cur = queue.shift();
                 if (!cur)
                     return null;
@@ -95,19 +143,19 @@ const cmds = [
                 return `channel already exists : <#${channel.id}>`;
             }
             else {
-                let newChannel = await interaction.guild?.channels.create("🎵┃Purple Music");
+                let newChannel = await interaction.guild?.channels.create({ name: "🎵┃Music Channel" });
                 if (newChannel == undefined)
                     return "ERROR";
                 let queue = (await common.getServerInfo(interaction.guildId)).musicQueue;
-                const embed = await (0, music_1.CreateEmbed)(queue, interaction.guildId);
-                await newChannel.send({ files: [new discord_js_1.MessageAttachment("resource/banner.png")] });
-                let mymsg = await newChannel.send({ content: "​\n__Queue empty__", embeds: [embed] });
-                await common.setServerInfo(interaction.guild?.id, { musicChannel: newChannel.id, musicMessage: mymsg.id });
+                await newChannel.send({ files: [{ attachment: "resource/banner.png" }] });
+                let mymsg = await newChannel.send({ content: "​\n__Queue empty__" });
+                await common.setServerInfo(interaction.guild?.id, { musicChannel: newChannel.id, musicMessage: mymsg.id, musicQueue: [] });
+                (0, music_1.showQueue)(interaction.guildId);
                 return `created channel <#${newChannel.id}>`;
             }
         }
     },
-    {
+    /* {
         name: "say",
         description: "post Message in Channel",
         options: [
@@ -121,14 +169,16 @@ const cmds = [
                 channel = await interaction.channelId;
             if (channel == undefined || interaction.guildId == null)
                 return null;
+
             let ch = await (await common.client.guilds.fetch(interaction.guildId)).channels.fetch(channel);
-            if (ch instanceof discord_js_1.TextChannel) {
+            if (ch instanceof TextChannel) {
                 ch.send(msg);
                 return { content: "send msg!", ephemeral: true };
             }
-            return null;
+
+            return null
         }
-    },
+    }, */
     {
         name: "meme",
         description: "Marks a message as a meme for the bot",
@@ -238,20 +288,53 @@ const cmds = [
         run: async function (interaction) {
             await interaction.deferReply({ ephemeral: true });
             var days = interaction.options.getInteger("days", false);
+            var index = interaction.options.getInteger("position", true) - 1;
             let guild = interaction.guild;
             if (days == null)
-                var memes = await common.memesdb.find({ server: guild?.id }, { limit: 10, sort: { score: -1, time: 1 } });
+                var memes = await common.memesdb.find({ server: guild?.id }, { limit: index + 1, sort: { score: -1, time: 1 } });
             else
-                var memes = await common.memesdb.find({ server: guild?.id, time: { $gte: Date.now() - 86400000 * days } }, { limit: 10, sort: { score: -1, time: 1 } });
-            var index = interaction.options.getInteger("position", true) - 1;
+                var memes = await common.memesdb.find({ server: guild?.id, time: { $gte: Date.now() - 86400000 * days } }, { limit: index + 1, sort: { score: -1, time: 1 } });
             var channel = (await common.client.channels.fetch(memes[index].channel));
             var memeMsg = await channel?.messages.fetch(memes[index].msg);
             //console.log("get command used! " + memeMsg.content.split(" ")[1] + " | " + memeMsg.url);
-            const embed = new discord_js_1.MessageEmbed()
+            const embed = new discord_js_1.EmbedBuilder()
                 .setTitle('Here is the link to meme #' + (index + 1))
                 .setColor(0xf5cd07)
                 .setDescription("[Go to Meme](" + memeMsg.url + ")");
             return { embeds: [embed], ephemeral: true };
+        }
+    },
+    {
+        name: "dictionary",
+        description: "get the most upvoted definition of a wrod from urban dictionary",
+        options: [
+            { name: "query", type: "string", description: "think to search", required: true },
+        ],
+        run: async function (interaction) {
+            await interaction.deferReply({ ephemeral: true });
+            let word = interaction.options.getString("query", true);
+            const url = 'https://mashape-community-urban-dictionary.p.rapidapi.com/define?term=' + encodeURIComponent(word);
+            const options = {
+                method: 'GET',
+                headers: {
+                    'X-RapidAPI-Key': '3d5b80d566msh08c82aeb1172313p1bf7edjsn0674fe77c385',
+                    'X-RapidAPI-Host': 'mashape-community-urban-dictionary.p.rapidapi.com'
+                }
+            };
+            let res = await (await fetch(url, options)).json();
+            if (res.list.length > 0) {
+                let elem = res.list[0];
+                const embed = new discord_js_1.EmbedBuilder()
+                    .setTitle(word)
+                    .setColor(0xf5cd07)
+                    .setDescription(elem.definition)
+                    .setFooter({ text: elem.written_on + ", Likes: " + elem.thumbs_up + " | dislikes: " + elem.thumbs_down })
+                    .setAuthor({ name: elem.author })
+                    .setURL(elem.permalink)
+                    .addFields({ name: "example", value: elem.example });
+                return { embeds: [embed] };
+            }
+            return "Not found on Urban Dictionary";
         }
     }
 ];
@@ -303,7 +386,7 @@ async function deleteCommands() {
 }
 //TODO: make function to detect change in slash command for reregister
 async function shouldUpdate() {
-    return false;
+    return true;
 }
 async function registerCommands(guilds) {
     if (!await shouldUpdate())

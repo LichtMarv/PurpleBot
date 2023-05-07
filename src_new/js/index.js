@@ -54,6 +54,7 @@ async function checkDelete() {
 }
 common.client.on("ready", async () => {
     console.log(`Logged in as ${common.client.user?.tag}!`);
+    //google.test()
     fs.readFile(__dirname + '/../../resource/activity.txt', function (err, data) {
         if (err) {
             throw err;
@@ -139,16 +140,19 @@ common.client.on("messageCreate", async (msg) => {
     }
     for (const user of msg.mentions.users) {
         if (user[1].id == common.client.user?.id) {
-            msg.reply("all bot commands use the / system, so use that. \n you may need to authorize it again: https://discord.com/api/oauth2/authorize?client_id=833423629504348160&permissions=8&scope=bot%20applications.commands");
+            msg.reply("all bot commands use the / system, so use that");
         }
     }
 });
 common.client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isCommand())
+    if (!interaction.isChatInputCommand() || interaction.guildId == null)
         return;
     for (let i = 0; i < commands_1.cmds.length; i++) {
         const command = commands_1.cmds[i];
         if (interaction.commandName === command.name) {
+            if (command.log != false) {
+                common.Log(interaction.guildId, common.LogDataType.MSG, interaction.member?.user.username + " used command '" + command.name + "'");
+            }
             const res = await command.run(interaction);
             if (res) {
                 if (interaction.deferred)
@@ -160,11 +164,12 @@ common.client.on("interactionCreate", async (interaction) => {
     }
 });
 common.client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isButton())
+    if (!interaction.isButton() || interaction.guildId == null)
         return;
     for (let i = 0; i < buttons_1.btns.length; i++) {
         const btn = buttons_1.btns[i];
         if (btn.id == interaction.customId) {
+            common.Log(interaction.guildId, common.LogDataType.MSG, interaction.member?.user.username + " used the Button '" + btn.name + "'");
             const res = await btn.run(interaction);
             if (res)
                 if (interaction.deferred)

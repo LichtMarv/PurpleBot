@@ -83,7 +83,9 @@ async function shiftQueue(guild) {
         await common.serverInfo.update({ server: guild }, { $push: { musicQueue: si.musicQueue[0] } });
     }
     await common.serverInfo.update({ server: guild }, { $pop: { musicQueue: -1 } });
-    if (si.musicQueue)
+    if (si.musicQueue && si.musicQueue.length <= 1)
+        stopMusic(guild);
+    if (si.musicQueue && si.musicQueue.length >= 2)
         playSong(guild);
 }
 exports.shiftQueue = shiftQueue;
@@ -149,6 +151,9 @@ async function connect(channel) {
             delete players[guild];
         }
     });
+    connection.on(voice_1.VoiceConnectionStatus.Signalling, async (oldState, newState) => {
+        console.log("SIGNALLING");
+    });
     players[guild] = (0, voice_1.createAudioPlayer)();
     players[guild].on(voice_1.AudioPlayerStatus.Idle, () => {
         shiftQueue(guild);
@@ -186,6 +191,8 @@ async function getInputType(input) {
 async function requestSong(input, channel, by) {
     if ((0, play_dl_1.is_expired)())
         await (0, play_dl_1.refreshToken)();
+    if (!channel)
+        return;
     if (!(0, voice_1.getVoiceConnection)(channel.guild.id))
         await connect(channel);
     const t = await getInputType(input);
@@ -254,6 +261,11 @@ async function showQueue(guild) {
         await (0, play_dl_1.refreshToken)();
     let server = await common.getServerInfo(guild);
     let musicQueue = server.musicQueue;
+    if (musicQueue == undefined) {
+        postQueue(guild, {}, server);
+        common.setServerInfo(guild, { musicQueue: [] });
+        return;
+    }
     let current = musicQueue[0];
     if (current) {
         loadSongs(guild, musicQueue, server);
@@ -291,7 +303,11 @@ async function loadSongs(guild, songs, server) {
 async function postQueue(guild, infos, server) {
     console.log("postQueue ...");
     let musicQueue = server.musicQueue;
-    let current = musicQueue[0];
+    let current;
+    if (musicQueue)
+        current = musicQueue[0];
+    else
+        current = undefined;
     let row = await (0, buttons_1.buildRow)("musicRow", guild);
     let embed = await CreateEmbed(guild, server);
     let c = await common.client.channels.fetch(server.musicChannel).catch(console.log);
@@ -324,9 +340,9 @@ async function postQueue(guild, infos, server) {
 async function CreateEmbed(guild, server) {
     console.log("create embed ....");
     let musicQueue = server.musicQueue;
-    let current = musicQueue[0];
-    let title = undefined;
-    let thumbNail = undefined;
+    let current = musicQueue ? musicQueue[0] : undefined;
+    let title = "";
+    let thumbNail;
     if (current) {
         let info = undefined;
         if (current.from == "spotify")
@@ -340,8 +356,8 @@ async function CreateEmbed(guild, server) {
         thumbNail = info.thumbnails[info.thumbnails.length - 1];
     }
     let loop = (await common.getServerInfo(guild)).musicLoop;
-    let embed = new discord_js_1.MessageEmbed()
-        .setTitle(title ? title : "Purple Music")
+    let embed = new discord_js_1.EmbedBuilder()
+        .setTitle(title ? title : "Brave New Music")
         .setColor(0x693068)
         .setDescription(current ? ("Requested by " + current.by) : "Put song name or link in here to play")
         .setImage(thumbNail ? thumbNail.url : "https://i.imgur.com/aMyAUlp.png")
@@ -354,7 +370,7 @@ exports.CreateEmbed = CreateEmbed;
 async function shuffleQueue(guild) {
     let server = await common.getServerInfo(guild);
     let queue = server.musicQueue;
-    if (!queue)
+    if (!queue || queue.length <= 0)
         return;
     let cur = queue.shift();
     let shuffled = await common.shuffle(queue);
@@ -383,7 +399,7 @@ async function togglePause(guild, vc, set = undefined) {
     }
     else if ((0, voice_1.getVoiceConnection)(guild)?.state.status == voice_1.VoiceConnectionStatus.Ready && (await (await common.client.guilds.fetch(guild)).members.fetch(common.client.user?.id)).voice.channel != vc)
         return false;
-    let cur = undefined;
+    let cur = false;
     if (set)
         cur = !set;
     else
